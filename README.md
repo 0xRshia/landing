@@ -20,6 +20,39 @@ npm test
 Edit the temporary song collection in `data/songs.ts`. Every song requires at
 least one HTTPS Spotify or YouTube link.
 
+## Docker
+
+Build and start the production container:
+
+```bash
+docker compose up --build -d --wait
+```
+
+Open `http://localhost:3000`. Follow the application logs or stop the service
+with:
+
+```bash
+docker compose logs -f web
+docker compose down
+```
+
+To use a different host port while keeping the container on port `3000`:
+
+```bash
+APP_PORT=3100 docker compose up --build -d --wait
+```
+
+The image can also be used without Compose:
+
+```bash
+docker build -t the-songs-between-us:local .
+docker run --rm --init -p 3000:3000 the-songs-between-us:local
+```
+
+The production container runs as a non-root user and exposes a health check on
+the home page. TLS and public-domain routing should be provided by a reverse
+proxy in front of the container.
+
 ## Architecture
 
 - Next-compatible React 19 app rendered by vinext
