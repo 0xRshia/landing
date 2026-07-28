@@ -6,8 +6,11 @@ WORKDIR /app
 
 COPY package.json package-lock.json ./
 
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci
+# Keep the dependency layer small on constrained VPS hosts. The image layer is
+# cached by Docker itself, so retaining a second npm tarball cache only consumes
+# additional disk space during builds.
+RUN npm ci --no-audit --no-fund --prefer-online \
+    && npm cache clean --force
 
 FROM dependencies AS builder
 
