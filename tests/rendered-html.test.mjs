@@ -40,8 +40,8 @@ test("server-renders the complete gothic mixtape", async () => {
   assert.match(html, /The Songs/);
   assert.match(html, /Between Us/);
   assert.match(html, /Songs kept in the dark/);
-  assert.match(html, /Protection/);
-  assert.match(html, /Love You to Death/);
+  assert.match(html, /Beauty School/);
+  assert.match(html, /Deadline/);
   assert.match(html, /For every song you trusted me with/);
   assert.match(html, /name="robots" content="[^"]*noindex/i);
   assert.match(html, /https:\/\/songs\.example\/og\.png/);
