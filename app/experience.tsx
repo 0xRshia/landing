@@ -419,14 +419,15 @@ export default function GothicMixtapeExperience() {
             Some arrived quietly. Some split the night open. I kept them all
             here—not as a playlist, but as a map of the moments you handed me.
           </p>
-          <p className="replaceable-note">
-            This message is placeholder copy and can be replaced with something
-            only the two of you know.
-          </p>
+          <p className="replaceable-note">hiiiiiiii.</p>
         </div>
       </section>
 
-      <section className="songs-section" id="songs" aria-labelledby="songs-title">
+      <section
+        className="songs-section"
+        id="songs"
+        aria-labelledby="songs-title"
+      >
         <header className="songs-header reveal">
           <div>
             <p className="section-label">II · The archive</p>
