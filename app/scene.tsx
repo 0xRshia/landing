@@ -3,6 +3,7 @@
 import {
   Component,
   Suspense,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -10,20 +11,21 @@ import {
   type MutableRefObject,
   type ReactNode,
 } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { Center, PerformanceMonitor, Preload, useGLTF } from "@react-three/drei";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { useGLTF } from "@react-three/drei";
 import {
   AdditiveBlending,
+  Box3,
   Color,
   DoubleSide,
   Group,
   MathUtils,
   Mesh,
-  MeshPhysicalMaterial,
   MeshStandardMaterial,
   Points,
   SRGBColorSpace,
   SpotLight,
+  Vector3,
 } from "three";
 
 export type SceneTarget = {
@@ -42,6 +44,7 @@ type SceneProps = {
   targetRef: MutableRefObject<SceneTarget>;
   activeSong: number;
   reducedMotion: boolean;
+  onLoading: () => void;
   onReady: () => void;
   onError: () => void;
 };
@@ -65,11 +68,41 @@ class SceneErrorBoundary extends Component<
   }
 }
 
-function ReadySignal({ onReady }: { onReady: () => void }) {
+function RenderReadySignal({
+  onReady,
+  onError,
+}: Pick<SceneProps, "onReady" | "onError">) {
+  const { camera, gl, scene } = useThree();
+  const compiled = useRef(false);
+  const readyFrame = useRef<number | null>(null);
+  const signalled = useRef(false);
+
   useEffect(() => {
-    const frame = requestAnimationFrame(onReady);
-    return () => cancelAnimationFrame(frame);
-  }, [onReady]);
+    let cancelled = false;
+
+    void gl
+      .compileAsync(scene, camera)
+      .then(() => {
+        if (!cancelled) compiled.current = true;
+      })
+      .catch(() => {
+        if (!cancelled) onError();
+      });
+
+    return () => {
+      cancelled = true;
+      if (readyFrame.current !== null) {
+        cancelAnimationFrame(readyFrame.current);
+      }
+    };
+  }, [camera, gl, onError, scene]);
+
+  useFrame(() => {
+    if (!compiled.current || signalled.current) return;
+
+    signalled.current = true;
+    readyFrame.current = requestAnimationFrame(onReady);
+  });
 
   return null;
 }
@@ -79,65 +112,127 @@ function WebGLFallbackSignal({ onError }: { onError: () => void }) {
   return null;
 }
 
+function WebGLContextMonitor({
+  onError,
+  onRestored,
+}: {
+  onError: () => void;
+  onRestored: () => void;
+}) {
+  const gl = useThree((state) => state.gl);
+
+  useEffect(() => {
+    const canvas = gl.domElement;
+    const handleLost = (event: WebGLContextEvent) => {
+      event.preventDefault();
+      onError();
+    };
+    const handleRestored = () => onRestored();
+
+    canvas.addEventListener("webglcontextlost", handleLost);
+    canvas.addEventListener("webglcontextrestored", handleRestored);
+
+    return () => {
+      canvas.removeEventListener("webglcontextlost", handleLost);
+      canvas.removeEventListener("webglcontextrestored", handleRestored);
+    };
+  }, [gl, onError, onRestored]);
+
+  return null;
+}
+
 function Guitar({
   targetRef,
   activeSong,
   reducedMotion,
-}: Omit<SceneProps, "onReady" | "onError">) {
+}: Omit<SceneProps, "onLoading" | "onReady" | "onError">) {
   const group = useRef<Group>(null);
   const silverRim = useRef<SpotLight>(null);
   const bloodRim = useRef<SpotLight>(null);
+  const viewport = useThree((state) => state.viewport);
   const guitar = useGLTF("/models/explorer-guitar.glb");
 
-  const scene = useMemo(() => {
+  const preparedGuitar = useMemo(() => {
     const clone = guitar.scene.clone(true);
 
     clone.traverse((object) => {
       if (!(object instanceof Mesh)) return;
 
-      object.frustumCulled = true;
+      // This is one compact hero model. Disabling culling avoids false-negative
+      // bounds on mobile Safari without creating a meaningful rendering cost.
+      object.frustumCulled = false;
       const source = object.material;
       const name = Array.isArray(source)
         ? source[0]?.name ?? ""
         : source?.name ?? "";
 
       if (name === "Material.004") {
-        object.material = new MeshPhysicalMaterial({
-          color: new Color("#1c2027"),
-          emissive: new Color("#0a0b0e"),
-          emissiveIntensity: 0.8,
-          metalness: 0.3,
-          roughness: 0.22,
-          clearcoat: 1,
-          clearcoatRoughness: 0.14,
+        object.material = new MeshStandardMaterial({
+          color: new Color("#252a33"),
+          emissive: new Color("#10131a"),
+          emissiveIntensity: 0.5,
+          metalness: 0.48,
+          roughness: 0.3,
           side: DoubleSide,
         });
       } else if (name === "Material.002") {
         object.material = new MeshStandardMaterial({
-          color: new Color("#777a7f"),
-          metalness: 1,
-          roughness: 0.16,
+          color: new Color("#9da1a8"),
+          metalness: 0.92,
+          roughness: 0.2,
           side: DoubleSide,
         });
       } else if (name === "Material.001") {
         object.material = new MeshStandardMaterial({
-          color: new Color("#101114"),
-          metalness: 0.9,
-          roughness: 0.28,
+          color: new Color("#181a20"),
+          metalness: 0.82,
+          roughness: 0.32,
           side: DoubleSide,
         });
       } else {
         object.material = new MeshStandardMaterial({
-          color: new Color("#342e2b"),
+          color: new Color("#4a403b"),
           metalness: 0.18,
-          roughness: 0.62,
+          roughness: 0.58,
           side: DoubleSide,
         });
       }
     });
 
-    return clone;
+    const oriented = new Group();
+    oriented.add(clone);
+    oriented.rotation.set(0.08, -0.18, Math.PI / 2);
+    oriented.updateMatrixWorld(true);
+
+    const bounds = new Box3().setFromObject(oriented);
+    const center = bounds.getCenter(new Vector3());
+    const size = bounds.getSize(new Vector3());
+    const dimensions = [center.x, center.y, center.z, size.x, size.y, size.z];
+
+    if (
+      bounds.isEmpty() ||
+      size.lengthSq() === 0 ||
+      !dimensions.every(Number.isFinite)
+    ) {
+      throw new Error("The guitar model has invalid render bounds.");
+    }
+
+    oriented.position.sub(center);
+
+    const root = new Group();
+    root.add(oriented);
+
+    return {
+      root,
+      width: size.x,
+      height: size.y,
+    };
   }, [guitar.scene]);
+
+  const fittedScale = Math.min(
+    (viewport.width * 0.78) / preparedGuitar.width,
+    (viewport.height * 0.82) / preparedGuitar.height,
+  );
 
   useFrame((state, delta) => {
     if (!group.current || document.hidden) return;
@@ -245,13 +340,7 @@ function Guitar({
       />
       <pointLight position={[0, 0.8, 3.4]} intensity={4} color="#f2e8dc" />
       <group ref={group}>
-        <Center>
-          <primitive
-            object={scene}
-            rotation={[0.08, -0.18, Math.PI / 2]}
-            scale={4.8}
-          />
-        </Center>
+        <primitive object={preparedGuitar.root} scale={fittedScale} />
       </group>
     </>
   );
@@ -306,34 +395,53 @@ function SceneContents(props: SceneProps) {
         reducedMotion={props.reducedMotion}
       />
       <Dust reducedMotion={props.reducedMotion} />
-      <ReadySignal onReady={props.onReady} />
-      <Preload all />
+      <RenderReadySignal onReady={props.onReady} onError={props.onError} />
     </>
   );
 }
 
 export default function SceneCanvas(props: SceneProps) {
-  const [dpr, setDpr] = useState(1.25);
+  const { onError, onLoading } = props;
+  const [compact, setCompact] = useState(true);
+  const [contextGeneration, setContextGeneration] = useState(0);
+
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 767px)");
+    const update = () => setCompact(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  const handleContextRestored = useCallback(() => {
+    onLoading();
+    setContextGeneration((generation) => generation + 1);
+  }, [onLoading]);
+
+  const handleContextLost = useCallback(() => {
+    onError();
+    setContextGeneration((generation) => generation + 1);
+  }, [onError]);
 
   return (
     <div className="scene-layer" aria-hidden="true">
       <SceneErrorBoundary onError={props.onError}>
         <Canvas
           camera={{ fov: 32, position: [0, 0, 6.4], near: 0.1, far: 30 }}
-          dpr={props.reducedMotion ? 1 : dpr}
+          dpr={props.reducedMotion || compact ? 1 : 1.25}
           gl={{
-            antialias: !props.reducedMotion,
+            antialias: !props.reducedMotion && !compact,
             alpha: false,
-            powerPreference: "high-performance",
+            powerPreference: compact ? "default" : "high-performance",
             outputColorSpace: SRGBColorSpace,
           }}
           fallback={<WebGLFallbackSignal onError={props.onError} />}
         >
-          <PerformanceMonitor
-            onIncline={() => setDpr(1.4)}
-            onDecline={() => setDpr(1)}
+          <WebGLContextMonitor
+            onError={handleContextLost}
+            onRestored={handleContextRestored}
           />
-          <Suspense fallback={null}>
+          <Suspense key={contextGeneration} fallback={null}>
             <SceneContents {...props} />
           </Suspense>
         </Canvas>

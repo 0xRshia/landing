@@ -155,8 +155,21 @@ export default function GothicMixtapeExperience() {
     "loading" | "ready" | "fallback"
   >("loading");
 
+  const markLoading = useCallback(() => setSceneStatus("loading"), []);
   const markReady = useCallback(() => setSceneStatus("ready"), []);
   const markFallback = useCallback(() => setSceneStatus("fallback"), []);
+
+  useEffect(() => {
+    if (sceneStatus !== "loading") return;
+
+    const timeout = window.setTimeout(() => {
+      setSceneStatus((current) =>
+        current === "loading" ? "fallback" : current,
+      );
+    }, 12_000);
+
+    return () => window.clearTimeout(timeout);
+  }, [sceneStatus]);
 
   useGSAP(
     () => {
@@ -337,6 +350,7 @@ export default function GothicMixtapeExperience() {
         targetRef={sceneTarget}
         activeSong={activeSong}
         reducedMotion={reducedMotion}
+        onLoading={markLoading}
         onReady={markReady}
         onError={markFallback}
       />

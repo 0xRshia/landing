@@ -104,7 +104,7 @@ summary {
   overflow: hidden;
   background:
     linear-gradient(rgba(5, 5, 6, 0.24), rgba(5, 5, 6, 0.62)),
-    url("/og.png") center / cover no-repeat,
+    url("/images/guitar-poster.webp") center / cover no-repeat,
     radial-gradient(ellipse at center, #25272b 0%, #080809 52%, #050506 75%);
   opacity: 0.76;
   transition: opacity 900ms ease;

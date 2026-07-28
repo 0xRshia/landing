@@ -52,13 +52,18 @@ test("server-renders the complete gothic mixtape", async () => {
 test("ships bounded, animated, and attributed visual assets", async () => {
   const guitar = new URL("../public/models/explorer-guitar.glb", import.meta.url);
   const social = new URL("../public/og.png", import.meta.url);
+  const poster = new URL(
+    "../public/images/guitar-poster.webp",
+    import.meta.url,
+  );
   const spiderWalk = new URL("../public/images/spider-walk.png", import.meta.url);
   const spiderIdle = new URL("../public/images/spider-idle.png", import.meta.url);
 
-  const [guitarStats, socialStats, walkData, idleData, attribution] =
+  const [guitarStats, socialStats, posterData, walkData, idleData, attribution] =
     await Promise.all([
       stat(guitar),
       stat(social),
+      readFile(poster),
       readFile(spiderWalk),
       readFile(spiderIdle),
       readFile(new URL("../ATTRIBUTIONS.md", import.meta.url), "utf8"),
@@ -66,6 +71,17 @@ test("ships bounded, animated, and attributed visual assets", async () => {
 
   assert.ok(guitarStats.size < 500_000, "guitar model exceeds 500 KB");
   assert.ok(socialStats.size < 1_500_000, "social image exceeds 1.5 MB");
+  assert.ok(posterData.length < 64_000, "guitar poster is not memory-buffered");
+  assert.equal(
+    posterData.subarray(0, 4).toString("ascii"),
+    "RIFF",
+    "guitar poster is not WebP",
+  );
+  assert.equal(
+    posterData.subarray(8, 12).toString("ascii"),
+    "WEBP",
+    "guitar poster is not WebP",
+  );
   assert.ok(walkData.includes(Buffer.from("acTL")), "walk PNG is not animated");
   assert.ok(idleData.includes(Buffer.from("acTL")), "idle PNG is not animated");
   assert.match(attribution, /PixelMotion4096/);
