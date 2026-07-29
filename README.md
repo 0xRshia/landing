@@ -28,7 +28,7 @@ Build and start the production container:
 docker compose up --build -d --wait
 ```
 
-Open `http://localhost:3000`. Follow the application logs or stop the service
+Open `http://localhost:3001`. Follow the application logs or stop the service
 with:
 
 ```bash
@@ -36,7 +36,7 @@ docker compose logs -f web
 docker compose down
 ```
 
-To use a different host port while keeping the container on port `3000`:
+To use a different host port while keeping the container on port `3001`:
 
 ```bash
 APP_PORT=3100 docker compose up --build -d --wait
@@ -46,7 +46,7 @@ The image can also be used without Compose:
 
 ```bash
 docker build -t the-songs-between-us:local .
-docker run --rm --init -p 3000:3000 the-songs-between-us:local
+docker run --rm --init -p 3001:3001 the-songs-between-us:local
 ```
 
 The production container runs as a non-root user and exposes a health check on
